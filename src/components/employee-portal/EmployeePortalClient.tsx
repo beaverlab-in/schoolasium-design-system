@@ -78,7 +78,7 @@ function LoginWall() {
           <AlertCircle size={14} className="text-[var(--color-info)] mt-0.5 flex-shrink-0" />
           <p className="text-xs text-[var(--text-secondary)]">
             <span className="font-semibold text-[var(--color-info-dark)]">Employee accounts only.</span>{" "}
-            Admins create accounts — you cannot self-register. Seed the DB first if it is empty.
+            Admins create accounts — you cannot self-register.
           </p>
         </div>
 
