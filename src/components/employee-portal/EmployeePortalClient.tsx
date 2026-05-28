@@ -1,39 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Users, Lock, Shield, Bell, Download, Activity,
-  BarChart2, Clock, Globe, Monitor, Smartphone,
-  Zap, Star, FileText, Package, Layers, ArrowRight,
-  Eye, EyeOff, LogIn, AlertCircle, CheckCircle,
-  Settings, ChevronRight, Megaphone, Calendar,
+  Lock, Shield, Bell, Download, Activity, Zap, Star,
+  FileText, Package, Layers, ArrowRight, Eye, EyeOff,
+  LogIn, AlertCircle, Settings, ChevronRight, Megaphone,
+  Clock, ExternalLink, Loader2,
 } from "lucide-react";
+import Link from "next/link";
+import { useAuthStore }     from "@/lib/store/authStore";
+import { useActivityStore } from "@/lib/store/activityStore";
+import { ROLE_LABELS }      from "@/lib/rbac";
 import { cn } from "@/lib/utils";
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000)     return "just now";
+  if (diff < 3_600_000)  return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
 
 // ─── Login wall ───────────────────────────────────────────────────────────────
 
-function LoginWall({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail]       = useState("");
+function LoginWall() {
+  const { signIn, loading } = useAuthStore();
+  const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [showPw, setShowPw]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]     = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!email || !password) { setError("Enter your credentials to continue."); return; }
-    setLoading(true);
-    // Simulate auth — in production wire to your auth provider
-    setTimeout(() => {
-      setLoading(false);
-      if (email.includes("@") && password.length >= 6) {
-        onLogin();
-      } else {
-        setError("Invalid credentials. Contact your admin for access.");
-      }
-    }, 1200);
+    setSubmitting(true);
+    const result = await signIn(email, password);
+    setSubmitting(false);
+    if (result.error) setError(result.error);
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-[var(--text-muted)]" />
+      </div>
+    );
   }
 
   return (
@@ -44,129 +58,76 @@ function LoginWall({ onLogin }: { onLogin: () => void }) {
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-sm"
       >
-        {/* Logo mark */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-[var(--color-primary-500)] flex items-center justify-center text-black font-black text-2xl mb-4 shadow-[var(--shadow-glow-primary)]">
             S
           </div>
           <h1 className="text-2xl font-black text-[var(--foreground)] tracking-tight">Employee Portal</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1 text-center">
-            Sign in with your Schoolasium credentials
-          </p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1 text-center">Sign in with your Schoolasium credentials</p>
         </div>
 
-        {/* Notice */}
         <div className="flex items-start gap-2.5 p-3 rounded-xl border border-[var(--color-info)]/30 bg-[var(--color-info)]/8 mb-6">
           <AlertCircle size={14} className="text-[var(--color-info)] mt-0.5 flex-shrink-0" />
           <p className="text-xs text-[var(--text-secondary)]">
             <span className="font-semibold text-[var(--color-info-dark)]">Employee accounts only.</span>{" "}
-            Only admins can create accounts. Contact your admin if you don't have credentials.
+            Admins create accounts — you cannot self-register. Seed the DB first if it is empty.
           </p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">
-              Work email
-            </label>
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="you@schoolasium.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={cn(
-                "w-full h-11 px-3.5 rounded-xl border bg-[var(--elevated)] text-sm",
-                "text-[var(--foreground)] placeholder:text-[var(--text-muted)]",
-                "outline-none transition-all duration-150",
-                "focus:ring-2 focus:ring-[var(--color-primary-500)]/40 focus:border-[var(--color-primary-500)]",
-                error ? "border-[var(--color-error)]" : "border-[var(--border)]",
-              )}
-            />
+            <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">Work email</label>
+            <input type="email" autoComplete="email" placeholder="you@schoolasium.com"
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              className={cn("w-full h-11 px-3.5 rounded-xl border bg-[var(--elevated)] text-sm text-[var(--foreground)] placeholder:text-[var(--text-muted)] outline-none transition-all focus:ring-2 focus:ring-[var(--color-primary-500)]/40 focus:border-[var(--color-primary-500)]",
+                error ? "border-[var(--color-error)]" : "border-[var(--border)]")} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">
-              Password
-            </label>
+            <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">Password</label>
             <div className="relative">
-              <input
-                type={showPw ? "text" : "password"}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={cn(
-                  "w-full h-11 px-3.5 pr-10 rounded-xl border bg-[var(--elevated)] text-sm",
-                  "text-[var(--foreground)] placeholder:text-[var(--text-muted)]",
-                  "outline-none transition-all duration-150",
-                  "focus:ring-2 focus:ring-[var(--color-primary-500)]/40 focus:border-[var(--color-primary-500)]",
-                  error ? "border-[var(--color-error)]" : "border-[var(--border)]",
-                )}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--foreground)] transition-colors"
-                aria-label={showPw ? "Hide password" : "Show password"}
-              >
+              <input type={showPw ? "text" : "password"} autoComplete="current-password" placeholder="••••••••"
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                className={cn("w-full h-11 px-3.5 pr-10 rounded-xl border bg-[var(--elevated)] text-sm text-[var(--foreground)] placeholder:text-[var(--text-muted)] outline-none transition-all focus:ring-2 focus:ring-[var(--color-primary-500)]/40 focus:border-[var(--color-primary-500)]",
+                  error ? "border-[var(--color-error)]" : "border-[var(--border)]")} />
+              <button type="button" onClick={() => setShowPw(!showPw)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--foreground)]"
+                aria-label={showPw ? "Hide" : "Show"}>
                 {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
           </div>
 
           {error && (
-            <motion.p
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-1.5 text-xs text-[var(--color-error)]"
-            >
-              <AlertCircle size={12} />
-              {error}
+            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-1.5 text-xs text-[var(--color-error)]">
+              <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />{error}
             </motion.p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={cn(
-              "w-full h-11 rounded-xl text-sm font-semibold",
-              "bg-[var(--color-primary-500)] text-black",
-              "hover:bg-[var(--color-primary-400)] transition-all duration-150",
-              "hover:shadow-[var(--shadow-glow-primary)]",
-              "disabled:opacity-60 disabled:cursor-not-allowed",
-              "flex items-center justify-center gap-2",
-            )}
-          >
-            {loading ? (
-              <>
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                  className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full"
-                />
-                Signing in…
-              </>
-            ) : (
-              <>
-                <LogIn size={15} strokeWidth={2} />
-                Sign in
-              </>
-            )}
+          <button type="submit" disabled={submitting}
+            className="w-full h-11 rounded-xl text-sm font-semibold bg-[var(--color-primary-500)] text-black hover:bg-[var(--color-primary-400)] transition-all hover:shadow-[var(--shadow-glow-primary)] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            {submitting
+              ? <><Loader2 size={15} className="animate-spin" />Signing in…</>
+              : <><LogIn size={15} strokeWidth={2} />Sign in</>}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
-          Having trouble?{" "}
-          <span className="text-[var(--color-primary-400)] cursor-pointer hover:underline">
-            Contact your admin
-          </span>
-        </p>
-
-        {/* Demo hint */}
-        <div className="mt-4 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]">
-          <p className="text-[10px] text-[var(--text-muted)] text-center">
-            Demo: use any <strong className="text-[var(--text-secondary)]">valid email</strong> + password ≥6 chars
+        {/* Demo accounts hint */}
+        <div className="mt-6 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] space-y-2">
+          <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Demo accounts (after seeding DB)</div>
+          {[
+            { email: "aditya@schoolasium.com", role: "Super Admin", pwd: "Admin@1234" },
+            { email: "sara@schoolasium.com",   role: "Admin",       pwd: "Admin@1234" },
+            { email: "marcus@schoolasium.com", role: "Employee",    pwd: "Employee@1234" },
+          ].map(({ email: de, role, pwd }) => (
+            <button key={de} onClick={() => { setEmail(de); setPassword(pwd); }}
+              className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--hover)] transition-colors text-left">
+              <span className="text-[10px] font-mono text-[var(--text-secondary)] truncate">{de}</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded border border-[var(--border)] text-[var(--text-muted)] ml-2 flex-shrink-0">{role}</span>
+            </button>
+          ))}
+          <p className="text-[9px] text-[var(--text-muted)] pt-1">
+            Run <code className="font-mono bg-[var(--elevated)] px-1 rounded">POST /api/admin/seed</code> first to populate the database.
           </p>
         </div>
       </motion.div>
@@ -174,40 +135,8 @@ function LoginWall({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ─── Setting row ──────────────────────────────────────────────────────────────
 
-const announcements = [
-  { id: 1, title: "Design System v1.1.0 Roadmap Published", body: "New components: Calendar, Data Table, Kanban, Rich Text Editor. ETA: July 2026.", time: "2h ago", type: "release", pinned: true },
-  { id: 2, title: "Figma UI Kit updated to v1.0.2", body: "Fixed auto-layout issues on Card variants. Re-sync your Figma Libraries.", time: "1d ago", type: "update", pinned: false },
-  { id: 3, title: "Accessibility audit results shared", body: "All 40 components now verified against WCAG 2.2 AA. Full report in Resources.", time: "3d ago", type: "info", pinned: false },
-  { id: 4, title: "New AI prompt templates available", body: "12 new prompt templates covering dark mode, motion, and data tables. See AI Guidelines.", time: "5d ago", type: "info", pinned: false },
-];
-
-const quickAccess = [
-  { label: "Figma UI Kit",      icon: Layers,   access: "employee", color: "text-[var(--color-accent-400)] bg-[var(--color-accent-500)]/10",   href: "/resources" },
-  { label: "Icon Pack SVG",     icon: Package,  access: "employee", color: "text-[var(--color-primary-500)] bg-[var(--color-primary-500)]/10", href: "/resources" },
-  { label: "Next.js Starter",   icon: Zap,      access: "employee", color: "text-[var(--color-secondary-400)] bg-[var(--color-secondary-500)]/10", href: "/resources" },
-  { label: "AI Prompt Library", icon: Star,     access: "public",   color: "text-[var(--color-accent-400)] bg-[var(--color-accent-500)]/10",   href: "/ai-guidelines" },
-  { label: "Token Spec",        icon: FileText, access: "public",   color: "text-[var(--color-primary-500)] bg-[var(--color-primary-500)]/10", href: "/tokens" },
-  { label: "Component Docs",    icon: Package,  access: "public",   color: "text-[var(--color-secondary-400)] bg-[var(--color-secondary-500)]/10", href: "/components" },
-];
-
-const activityLog = [
-  { action: "Downloaded Figma UI Kit",        user: "AK",  time: "10m ago", device: "MacBook Pro", browser: "Chrome" },
-  { action: "Viewed tokens page",             user: "SJ",  time: "22m ago", device: "Windows PC",  browser: "Edge"   },
-  { action: "Copied primary-500 CSS token",   user: "MR",  time: "1h ago",  device: "MacBook Air", browser: "Safari" },
-  { action: "Downloaded Next.js Starter",     user: "PD",  time: "2h ago",  device: "Linux",       browser: "Firefox"},
-  { action: "Signed in from new device",      user: "TN",  time: "3h ago",  device: "iPad Pro",    browser: "Safari" },
-];
-
-const stats = [
-  { label: "Active employees", value: "24",   icon: Users,    color: "text-[var(--color-primary-500)]  bg-[var(--color-primary-500)]/10" },
-  { label: "Downloads today",  value: "138",  icon: Download, color: "text-[var(--color-secondary-400)] bg-[var(--color-secondary-500)]/10" },
-  { label: "Active sessions",  value: "9",    icon: Monitor,  color: "text-[var(--color-success)]      bg-[var(--color-success)]/10" },
-  { label: "Announcements",    value: "4",    icon: Bell,     color: "text-[var(--color-accent-400)]   bg-[var(--color-accent-500)]/10" },
-];
-
-// Extracted to avoid hooks-in-map violation
 function SettingRow({ label, desc, defaultOn }: { label: string; desc: string; defaultOn: boolean }) {
   const [on, setOn] = useState(defaultOn);
   return (
@@ -216,32 +145,48 @@ function SettingRow({ label, desc, defaultOn }: { label: string; desc: string; d
         <div className="text-sm font-medium text-[var(--foreground)]">{label}</div>
         <div className="text-xs text-[var(--text-muted)] mt-0.5">{desc}</div>
       </div>
-      <button
-        onClick={() => setOn(!on)}
-        role="switch"
-        aria-checked={on}
-        className={cn(
-          "relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ml-4",
-          on ? "bg-[var(--color-primary-500)]" : "bg-[var(--color-neutral-700)]",
-        )}
-      >
-        <span className={cn(
-          "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200",
-          on ? "translate-x-5" : "translate-x-0",
-        )} />
+      <button onClick={() => setOn(!on)} role="switch" aria-checked={on}
+        className={cn("relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ml-4",
+          on ? "bg-[var(--color-primary-500)]" : "bg-[var(--color-neutral-700)]")}>
+        <span className={cn("absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200",
+          on ? "translate-x-5" : "translate-x-0")} />
       </button>
     </div>
   );
 }
 
-const announcementTypeStyles: Record<string, string> = {
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+const ANNOUNCEMENTS = [
+  { id: 1, title: "Design System v1.1.0 Roadmap Published", body: "New: Calendar, Data Table, Kanban, Rich Text Editor. ETA July 2026.", time: "2h ago", type: "release", pinned: true },
+  { id: 2, title: "Figma UI Kit updated to v1.0.2",          body: "Fixed auto-layout issues on Card variants. Re-sync your Figma Libraries.", time: "1d ago", type: "update", pinned: false },
+  { id: 3, title: "All 40 components WCAG 2.2 AA verified",  body: "Full accessibility audit complete. Full report in Resources.", time: "3d ago", type: "info", pinned: false },
+];
+
+const TYPE_STYLES: Record<string, string> = {
   release: "text-[var(--color-primary-400)]  bg-[var(--color-primary-500)]/10  border-[var(--color-primary-500)]/30",
   update:  "text-[var(--color-secondary-400)] bg-[var(--color-secondary-500)]/10 border-[var(--color-secondary-500)]/30",
-  info:    "text-[var(--color-info-dark)]     bg-[var(--color-info)]/10         border-[var(--color-info)]/30",
+  info:    "text-[var(--color-info-dark)]     bg-[var(--color-info)]/10          border-[var(--color-info)]/30",
 };
 
-function Dashboard({ onLogout }: { onLogout: () => void }) {
-  const [activeTab, setActiveTab] = useState<"overview" | "activity" | "settings">("overview");
+function Dashboard() {
+  const { user, signOut } = useAuthStore();
+  const { events, fetchEvents, log } = useActivityStore();
+  const [tab, setTab] = useState<"overview" | "activity" | "settings">("overview");
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  useEffect(() => {
+    if (tab === "activity" && user) {
+      fetchEvents({ employeeId: user.id, limit: 20 });
+    }
+  }, [tab, user, fetchEvents]);
+
+  async function handleSignOut() {
+    await log({ type: "logout", detail: "Signed out" });
+    await signOut();
+  }
+
+  if (!user) return null;
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 sm:px-6 pb-24">
@@ -252,20 +197,23 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-500)] flex items-center justify-center text-black font-black text-sm">S</div>
             <span className="text-xs text-[var(--color-primary-400)] font-medium">Employee Portal</span>
           </div>
-          <h1 className="text-3xl font-black text-[var(--foreground)] tracking-tight">Welcome back, team</h1>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">Schoolasium Design System · Internal</p>
+          <h1 className="text-3xl font-black text-[var(--foreground)] tracking-tight">Welcome, {user.name.split(" ")[0]}</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">{ROLE_LABELS[user.role]} · {user.department}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <Link href="/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-error)]/30 text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors">
+              <Shield size={11} />Admin Panel
+            </Link>
+          )}
           <span className="flex items-center gap-1.5 text-xs text-[var(--color-success-dark)] bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 px-3 py-1.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
             Signed in
           </span>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--hover)] transition-colors"
-          >
-            <Lock size={11} />
-            Sign out
+          <button onClick={handleSignOut}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--hover)] transition-colors">
+            <Lock size={11} />Sign out
           </button>
         </div>
       </div>
@@ -273,188 +221,123 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       {/* Tabs */}
       <div className="flex border-b border-[var(--border)] mb-8 overflow-x-auto">
         {(["overview", "activity", "settings"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={cn(
-              "px-5 py-2.5 text-sm font-medium capitalize whitespace-nowrap border-b-2 -mb-px transition-colors",
-              activeTab === t
-                ? "text-[var(--color-primary-500)] border-[var(--color-primary-500)]"
-                : "text-[var(--text-muted)] border-transparent hover:text-[var(--foreground)]",
-            )}
-          >
+          <button key={t} onClick={() => setTab(t)}
+            className={cn("px-5 py-2.5 text-sm font-medium capitalize whitespace-nowrap border-b-2 -mb-px transition-colors",
+              tab === t ? "text-[var(--color-primary-500)] border-[var(--color-primary-500)]"
+                        : "text-[var(--text-muted)] border-transparent hover:text-[var(--foreground)]")}>
             {t}
           </button>
         ))}
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeTab === "overview" && (
-            <div className="space-y-8">
-              {/* Stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map(({ label, value, icon: Icon, color }) => (
-                  <div key={label} className="p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3", color)}>
-                      <Icon size={16} strokeWidth={1.75} />
+        <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+
+          {/* ── Overview ── */}
+          {tab === "overview" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-2">
+                <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2 mb-4">
+                  <Megaphone size={15} className="text-[var(--color-primary-500)]" />Announcements
+                </h2>
+                {ANNOUNCEMENTS.map((ann) => (
+                  <div key={ann.id} className={cn("p-4 rounded-xl border bg-[var(--surface)] hover:bg-[var(--elevated)] transition-colors",
+                    ann.pinned ? "border-[var(--color-primary-500)]/25" : "border-[var(--border)]")}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          {ann.pinned && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--color-primary-500)] text-black uppercase">Pinned</span>}
+                          <span className={cn("text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border", TYPE_STYLES[ann.type])}>{ann.type}</span>
+                        </div>
+                        <div className="text-sm font-semibold text-[var(--foreground)] mb-1">{ann.title}</div>
+                        <div className="text-xs text-[var(--text-secondary)]">{ann.body}</div>
+                        <div className="text-[10px] text-[var(--text-muted)] mt-2 flex items-center gap-1"><Clock size={9} />{ann.time}</div>
+                      </div>
+                      <ChevronRight size={14} className="text-[var(--text-muted)] shrink-0 mt-0.5" />
                     </div>
-                    <div className="text-2xl font-black text-[var(--foreground)]">{value}</div>
-                    <div className="text-xs text-[var(--text-muted)] mt-0.5">{label}</div>
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Announcements */}
-                <div className="lg:col-span-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
-                      <Megaphone size={15} className="text-[var(--color-primary-500)]" />
-                      Announcements
-                    </h2>
-                    <span className="text-xs text-[var(--text-muted)]">{announcements.length} posts</span>
-                  </div>
-                  <div className="space-y-2">
-                    {announcements.map((ann) => (
-                      <div
-                        key={ann.id}
-                        className={cn(
-                          "p-4 rounded-xl border bg-[var(--surface)] hover:bg-[var(--elevated)] transition-colors",
-                          ann.pinned ? "border-[var(--color-primary-500)]/25" : "border-[var(--border)]",
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              {ann.pinned && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--color-primary-500)] text-black uppercase tracking-wider">Pinned</span>
-                              )}
-                              <span className={cn("text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border", announcementTypeStyles[ann.type])}>
-                                {ann.type}
-                              </span>
-                            </div>
-                            <div className="text-sm font-semibold text-[var(--foreground)] mb-1">{ann.title}</div>
-                            <div className="text-xs text-[var(--text-secondary)]">{ann.body}</div>
-                            <div className="text-[10px] text-[var(--text-muted)] mt-2 flex items-center gap-1">
-                              <Clock size={9} />
-                              {ann.time}
-                            </div>
-                          </div>
-                          <ChevronRight size={14} className="text-[var(--text-muted)] flex-shrink-0 mt-0.5" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quick access */}
-                <div>
-                  <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2 mb-4">
-                    <Zap size={15} className="text-[var(--color-primary-500)]" />
-                    Quick Access
-                  </h2>
-                  <div className="space-y-2">
-                    {quickAccess.map(({ label, icon: Icon, access, color, href }) => (
-                      <a
-                        key={label}
-                        href={href}
-                        className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--elevated)] hover:border-[var(--color-primary-500)]/25 transition-all group"
-                      >
-                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", color)}>
-                          <Icon size={14} strokeWidth={1.75} />
-                        </div>
-                        <span className="text-sm text-[var(--foreground)] flex-1">{label}</span>
-                        <div className="flex items-center gap-1.5">
-                          {access === "employee" && <Lock size={10} className="text-[var(--color-accent-400)]" />}
-                          <ChevronRight size={13} className="text-[var(--text-muted)] group-hover:text-[var(--foreground)] transition-colors" />
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "activity" && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
-                  <Activity size={15} className="text-[var(--color-primary-500)]" />
-                  Activity Log
+              <div>
+                <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2 mb-4">
+                  <Zap size={15} className="text-[var(--color-primary-500)]" />Quick Access
                 </h2>
-                <span className="text-xs text-[var(--text-muted)]">Last 24 hours</span>
-              </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-                <div className="grid grid-cols-5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] px-5 py-3 border-b border-[var(--border)] bg-[var(--elevated)]">
-                  <span className="col-span-2">Action</span>
-                  <span>Employee</span>
-                  <span>Device / Browser</span>
-                  <span>Time</span>
-                </div>
-                <div className="divide-y divide-[var(--border)]">
-                  {activityLog.map((item, i) => (
-                    <div key={i} className="grid grid-cols-5 gap-2 items-center px-5 py-3 text-xs hover:bg-[var(--elevated)] transition-colors">
-                      <span className="col-span-2 text-[var(--foreground)]">{item.action}</span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-primary-400)] to-[var(--color-primary-600)] flex items-center justify-center text-[8px] font-bold text-black">
-                          {item.user}
-                        </div>
+                <div className="space-y-2">
+                  {[
+                    { label: "Design Tokens",    href: "/tokens",        icon: Star    },
+                    { label: "Component Docs",   href: "/components",    icon: Package },
+                    { label: "Resource Hub",     href: "/resources",     icon: Layers  },
+                    { label: "AI Guidelines",    href: "/ai-guidelines", icon: Zap     },
+                    { label: "Getting Started",  href: "/guide",         icon: FileText},
+                    ...(isAdmin ? [{ label: "Admin Panel", href: "/admin", icon: Shield }] : []),
+                  ].map(({ label, href, icon: Icon }) => (
+                    <Link key={label} href={href}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--elevated)] hover:border-[var(--color-primary-500)]/25 transition-all group">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-500)]/10 flex items-center justify-center text-[var(--color-primary-500)] shrink-0">
+                        <Icon size={14} strokeWidth={1.75} />
                       </div>
-                      <span className="text-[var(--text-secondary)]">{item.device} · {item.browser}</span>
-                      <span className="text-[var(--text-muted)]">{item.time}</span>
-                    </div>
+                      <span className="text-sm text-[var(--foreground)] flex-1">{label}</span>
+                      <ChevronRight size={13} className="text-[var(--text-muted)] group-hover:text-[var(--foreground)] transition-colors" />
+                    </Link>
                   ))}
                 </div>
               </div>
-
-              {/* Security notice */}
-              <div className="mt-4 flex items-start gap-3 p-4 rounded-xl border border-[var(--color-info)]/20 bg-[var(--color-info)]/5">
-                <Shield size={14} className="text-[var(--color-info)] mt-0.5 flex-shrink-0" />
-                <div className="text-xs text-[var(--text-secondary)]">
-                  <span className="font-semibold text-[var(--color-info-dark)]">Full RBAC audit logs</span> are retained for 90 days.
-                  Device fingerprints, IP addresses, and session tokens are logged per session.
-                  Contact your admin to export or review your personal data.
-                </div>
-              </div>
             </div>
           )}
 
-          {activeTab === "settings" && (
+          {/* ── Activity ── */}
+          {tab === "activity" && (
+            <div>
+              <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2 mb-6">
+                <Activity size={15} className="text-[var(--color-primary-500)]" />Your Activity
+              </h2>
+              {events.length === 0 ? (
+                <div className="py-16 text-center text-sm text-[var(--text-muted)]">No activity recorded yet.</div>
+              ) : (
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
+                  {events.map((evt) => (
+                    <div key={evt.id} className="flex items-center gap-4 px-5 py-3 hover:bg-[var(--elevated)] transition-colors">
+                      <div className="text-xs text-[var(--foreground)] flex-1">{evt.detail}</div>
+                      <div className="text-[10px] text-[var(--text-muted)] hidden sm:block">{evt.device} · {evt.browser}</div>
+                      <div className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">{timeAgo(evt.timestamp)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Settings ── */}
+          {tab === "settings" && (
             <div className="max-w-lg space-y-4">
               <h2 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2 mb-6">
-                <Settings size={15} className="text-[var(--color-primary-500)]" />
-                Account Settings
+                <Settings size={15} className="text-[var(--color-primary-500)]" />Account Settings
               </h2>
+              <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] space-y-1">
+                <div className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Account</div>
+                <div className="text-sm font-medium text-[var(--foreground)]">{user.name}</div>
+                <div className="text-xs text-[var(--text-muted)]">{user.email}</div>
+                <div className="flex gap-2 mt-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--text-secondary)]">{ROLE_LABELS[user.role]}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--text-secondary)]">{user.department}</span>
+                </div>
+              </div>
               {[
-                { label: "Email notifications", desc: "Announcements, changelog, new assets",    defaultOn: true  },
+                { label: "Email notifications",  desc: "Announcements, changelog, new assets",    defaultOn: true  },
                 { label: "Download history",     desc: "Keep a log of my asset downloads",        defaultOn: true  },
                 { label: "Session persistence",  desc: "Stay signed in for 30 days",              defaultOn: false },
                 { label: "Analytics sharing",    desc: "Allow anonymized usage data for DS team", defaultOn: true  },
-              ].map((item) => (
-                <SettingRow key={item.label} {...item} />
-              ))}
-
+              ].map((item) => <SettingRow key={item.label} {...item} />)}
               <div className="pt-4 border-t border-[var(--border)]">
-                <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-error)]/20 bg-[var(--color-error)]/5">
-                  <div>
-                    <div className="text-sm font-medium text-[var(--color-error)]">Danger zone</div>
-                    <div className="text-xs text-[var(--text-muted)] mt-0.5">Revoke all active sessions immediately</div>
-                  </div>
-                  <button className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-error)]/40 text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors">
-                    Revoke
-                  </button>
-                </div>
+                <button onClick={handleSignOut}
+                  className="w-full flex items-center justify-center gap-2 h-10 rounded-xl border border-[var(--color-error)]/30 text-[var(--color-error)] text-sm font-medium hover:bg-[var(--color-error)]/10 transition-colors">
+                  <Lock size={14} />Sign out of this session
+                </button>
               </div>
             </div>
           )}
+
         </motion.div>
       </AnimatePresence>
     </div>
@@ -464,8 +347,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function EmployeePortalClient() {
-  const [signedIn, setSignedIn] = useState(false);
-  return signedIn
-    ? <Dashboard onLogout={() => setSignedIn(false)} />
-    : <LoginWall onLogin={() => setSignedIn(true)} />;
+  const { user, loading } = useAuthStore();
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-[var(--text-muted)]" />
+      </div>
+    );
+  }
+
+  return user ? <Dashboard /> : <LoginWall />;
 }

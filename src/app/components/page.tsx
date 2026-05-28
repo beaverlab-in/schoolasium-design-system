@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ComponentsPageClient } from "@/components/components-page/ComponentsPageClient";
 
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
 export default function ComponentsPage() {
   return (
     <>
-      <Navbar />
       <main className="pt-16 min-h-screen">
         <ComponentsPageClient />
       </main>
