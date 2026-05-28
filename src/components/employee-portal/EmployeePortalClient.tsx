@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Lock, Check, Shield, Bell, Download, Activity, Zap, Star,
@@ -26,6 +27,10 @@ function timeAgo(iso: string): string {
 
 function LoginWall() {
   const { signIn, loading } = useAuthStore();
+  const router        = useRouter();
+  const searchParams  = useSearchParams();
+  const redirectTo    = searchParams.get("redirect");
+
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]   = useState(false);
@@ -39,7 +44,10 @@ function LoginWall() {
     setSubmitting(true);
     const result = await signIn(email, password);
     setSubmitting(false);
-    if (result.error) setError(result.error);
+    if (result.error) { setError(result.error); return; }
+    if (redirectTo && redirectTo.startsWith("/")) {
+      router.push(redirectTo);
+    }
   }
 
   if (loading) {

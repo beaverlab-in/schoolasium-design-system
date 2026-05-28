@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { EmployeePortalClient } from "@/components/employee-portal/EmployeePortalClient";
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function EmployeePortalPage() {
   return (
     <main className="pt-16 min-h-screen">
-      <EmployeePortalClient />
+      <Suspense>
+        <EmployeePortalClient />
+      </Suspense>
     </main>
   );
 }
