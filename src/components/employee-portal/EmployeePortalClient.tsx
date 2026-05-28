@@ -396,6 +396,17 @@ function Dashboard() {
 
 export function EmployeePortalClient() {
   const { user, loading } = useAuthStore();
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo   = searchParams.get("redirect");
+
+  // Already logged-in admin with a pending redirect → forward immediately
+  useEffect(() => {
+    if (!loading && user && redirectTo && redirectTo.startsWith("/")) {
+      const isAdmin = user.role === "admin" || user.role === "super_admin";
+      if (isAdmin) router.replace(redirectTo);
+    }
+  }, [loading, user, redirectTo, router]);
 
   if (loading) {
     return (
