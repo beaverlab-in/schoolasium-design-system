@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Lock, Check, Shield, Bell, Download, Activity, Zap, Star,
@@ -26,6 +27,10 @@ function timeAgo(iso: string): string {
 
 function LoginWall() {
   const { signIn, loading } = useAuthStore();
+  const router        = useRouter();
+  const searchParams  = useSearchParams();
+  const redirectTo    = searchParams.get("redirect");
+
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]   = useState(false);
@@ -39,7 +44,10 @@ function LoginWall() {
     setSubmitting(true);
     const result = await signIn(email, password);
     setSubmitting(false);
-    if (result.error) setError(result.error);
+    if (result.error) { setError(result.error); return; }
+    if (redirectTo && redirectTo.startsWith("/")) {
+      router.push(redirectTo);
+    }
   }
 
   if (loading) {
@@ -70,7 +78,7 @@ function LoginWall() {
           <AlertCircle size={14} className="text-[var(--color-info)] mt-0.5 flex-shrink-0" />
           <p className="text-xs text-[var(--text-secondary)]">
             <span className="font-semibold text-[var(--color-info-dark)]">Employee accounts only.</span>{" "}
-            Admins create accounts — you cannot self-register. Seed the DB first if it is empty.
+            Admins create accounts — you cannot self-register.
           </p>
         </div>
 
@@ -388,6 +396,17 @@ function Dashboard() {
 
 export function EmployeePortalClient() {
   const { user, loading } = useAuthStore();
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo   = searchParams.get("redirect");
+
+  // Already logged-in admin with a pending redirect → forward immediately
+  useEffect(() => {
+    if (!loading && user && redirectTo && redirectTo.startsWith("/")) {
+      const isAdmin = user.role === "admin" || user.role === "super_admin";
+      if (isAdmin) router.replace(redirectTo);
+    }
+  }, [loading, user, redirectTo, router]);
 
   if (loading) {
     return (
